@@ -1,5 +1,5 @@
 # Keyboard-Interface
-This is an interface for a USB keyboard written for the Basys-3 development board.
+This is an interface for a USB keyboard written for the Basys-3 FPGA development board.
 
 The Basys-3 includes both a USB-UART bridge for programming and general communication, as well as a USB-PS/2 bridge, which simulates a HID interface. This project communicates with the HID over the simulated PS/2 port, converts any received key codes to ASCII, handling key releases and capitalization internally, and transmits the ASCII code to the system over UART. A basic C file is included to allow the system interface with the board over the COM4 port.
 
