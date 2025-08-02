@@ -3,8 +3,12 @@ input i_clk,
 inout io_PS2_clk,
 inout io_PS2_data,
 input [2:0] i_led_status,
-output reg [7:0] o_keycode,
-output reg o_ready
+output reg [8:0] o_keycode = 0,
+output reg o_ready = 0,
+output reg [3:0] o_db_led1 = 0,//Current FSM state
+output reg [3:0] o_db_led2 = 0,//r_current_bit
+output reg [3:0] o_db_led3 = 0,//PS2 clock falling edge count: triple buffered
+output reg [3:0] o_db_led4 = 0//PS2 clock falling edge count: negedge
 );
 
 //Divide system clock to PS/2 interface speed. This clock is assigned to r_TX_clk when writing to the device.
@@ -29,7 +33,7 @@ reg r_pulse_ready1 = 0;
 reg r_pulse_ready2 = 0;
 
 //For detecting falling edge of PS/2 closk
-reg r_PS2_clk_reg = 1;
+reg [2:0] r_PS2_clk_sync = 3'b111;
 
 //FSM 
 localparam IDLE = 0;
@@ -49,22 +53,36 @@ reg [13:0] r_delay_counter = 0; //For DELAY1 and DELAY2 states
 localparam LED_COMMAND = 8'hed;
 localparam DELAY_CYCLES = 12000;//120us
 
+always @(negedge w_RX_clk) begin
+    o_db_led4 <= o_db_led4 + 1;
+end
+
 always @(posedge i_clk) begin
+
     //Divide into slow clock for PS/2 transmission (clock is reset before sending packet)
     if(r_slow_clock_counter == NUM_CYCLES_IN_SLOW_CYCLE/2 - 1) begin
         r_slow_clock <= ~r_slow_clock;
         r_slow_clock_counter <= 0;
-    end
+    end else
+        r_slow_clock_counter <= r_slow_clock_counter + 1;
 
     //Record PS/2 clock for edge detection
-    r_PS2_clk_reg <= w_RX_clk;
+    r_PS2_clk_sync[0] <= w_RX_clk;
+    r_PS2_clk_sync[1] <= r_PS2_clk_sync[0];
+    r_PS2_clk_sync[2] <= r_PS2_clk_sync[1];
+
+    //Debugging
+    o_db_led1 <= r_state;
+    o_db_led2 <= r_current_bit;
 
     //FSM
     case (r_state) 
     IDLE: begin
         r_write_enable <= 0;
         r_pulse_ready1 <= 0;
-        if(r_PS2_clk_reg && ~w_RX_clk) begin
+        if(r_PS2_clk_sync[2] && !w_RX_clk) begin
+            o_db_led3 <= o_db_led3 + 1;
+            r_PS2_clk_sync <= 0;
             r_state <= READING;
             r_current_bit <= 1;
         end
@@ -72,19 +90,21 @@ always @(posedge i_clk) begin
 
     READING: begin
         r_write_enable <= 0;
-        if(r_PS2_clk_reg && ~w_RX_clk) begin
-            r_current_bit <= r_current_bit + 1;
+        if(r_PS2_clk_sync[2] && !w_RX_clk) begin
+            o_db_led3 <= o_db_led3 + 1;
+            r_PS2_clk_sync <= 0;
             case (r_current_bit)                 
-                default: o_keycode[r_current_bit - 1] <= w_RX_data;
+                default: o_keycode[r_current_bit] <= w_RX_data;
                 9: ;
                 10: begin
                     r_pulse_ready1 <= 1;
-                    if(o_keycode == 8'h58 || o_keycode == 8'h77 || o_keycode == 8'h7e) begin
+                    if(o_keycode[8:1] == 8'h58 || o_keycode[8:1] == 8'h77 || o_keycode[8:1] == 8'h7e) begin
                         r_state <= DELAY1;
                         r_delay_counter <= 0;
                     end else r_state <= IDLE;
                 end
             endcase
+            r_current_bit <= r_current_bit + 1;
         end
     end
 
@@ -111,7 +131,8 @@ always @(posedge i_clk) begin
         end
 
         //Change data on rising edges for reading on falling edges
-        if(!r_PS2_clk_reg && w_RX_clk) begin
+        if(!r_PS2_clk_sync[2] && w_RX_clk) begin
+            r_PS2_clk_sync <= 1;
             r_current_bit <= r_current_bit + 1;
             case(r_current_bit)
                 0: r_TX_data <= 0;
@@ -129,7 +150,8 @@ always @(posedge i_clk) begin
 
     RECEIVE_OK: begin
         r_write_enable <= 0;
-        if(r_PS2_clk_reg && !w_RX_clk) begin
+        if(r_PS2_clk_sync[2] && !w_RX_clk) begin
+            r_PS2_clk_sync <= 0;
             if(r_current_bit == 10)
                 r_state <= DELAY2;
             else r_current_bit <= r_current_bit + 1;
@@ -159,7 +181,8 @@ always @(posedge i_clk) begin
         end
 
         //Change data on rising edges for reading on falling edges
-        if(!r_PS2_clk_reg && w_RX_clk) begin
+        if(!r_PS2_clk_sync[2] && w_RX_clk) begin
+            r_PS2_clk_sync <= 1;
             r_current_bit <= r_current_bit + 1;
             case(r_current_bit)
                 0: r_TX_data <= 0;
