@@ -94,15 +94,16 @@ always @(posedge i_clk) begin
                 8'h49: r_ascii <= (r_shift ? 8'h3e : 8'h2e);//.>
                 8'h4a: r_ascii <= (r_shift ? 8'h3f : 8'h2f);///?
 
-                8'h66: r_ascii <= 8'h07;//Backspace
-                8'h0d: r_ascii <= 8'h08;//Tab
-                8'h5a: r_ascii <= 8'h0d;//Carriage return
+                8'h66: r_ascii <= 8'h08;//Backspace
+                8'h0d: r_ascii <= 8'h09;//Tab
+                8'h5a: r_ascii <= 8'h0a;//Line feed
+                8'h29: r_ascii <= 8'h20;//Space
 
                 8'h58: begin o_led_status[2] <= ~o_led_status[2]; r_transmitting <= 0; end //Caps lock
                 8'h77: begin o_led_status[1] <= ~o_led_status[1]; r_transmitting <= 0; end //Num lock
                 8'h7e: begin o_led_status[0] <= ~o_led_status[0]; r_transmitting <= 0; end //Scroll lock
             
-            default: r_transmitting <= 0;
+                default: r_transmitting <= 0;
             endcase
         end
     end else if(r_state == STOP) begin

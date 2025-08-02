@@ -38,7 +38,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports {o_db_led2[2]}]
 set_property PACKAGE_PIN U14 [get_ports {o_db_led2[2]}]
 
 set_property IOSTANDARD LVCMOS33 [get_ports {o_db_led2[3]}]
-set_property PACKAGE_PIN V15 [get_ports {o_db_led2[3]}]
+set_property PACKAGE_PIN V14 [get_ports {o_db_led2[3]}]
 
 set_property IOSTANDARD LVCMOS33 [get_ports {o_db_led3[0]}]
 set_property PACKAGE_PIN V13 [get_ports {o_db_led3[0]}]

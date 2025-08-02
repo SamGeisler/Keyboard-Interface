@@ -42,8 +42,7 @@ int main(){
     DWORD bytesRead;
     while(1){
         ReadFile(hCom, &buf, 1, &bytesRead, NULL);
-        //printf("%c", buf);
-        printf("0x%x: %c\n",buf,buf);
+        printf("%c", buf);
     }
 
     return 0;
