@@ -22,7 +22,7 @@ reg r_write_enable = 0;
 
 reg r_TX_clk = 1;
 wire w_RX_clk = io_PS2_clk;
-assign io_PS2_clk = r_write_enable ? (r_match_clock_flag ? r_TX_clk : r_slow_clock) : 1'bZ;
+assign io_PS2_clk = r_write_enable ? (r_match_clock_flag ? r_slow_clock : r_TX_clk) : 1'bZ;
 
 reg r_TX_data = 1;
 wire w_RX_data = io_PS2_data;
@@ -148,6 +148,7 @@ always @(posedge i_clk) begin
                     r_state <= RECEIVE_OK;
                     r_current_bit <= 0;
                     r_delay_counter <= 0;
+                    r_write_enable <= 0;
                 end
             endcase
         end
