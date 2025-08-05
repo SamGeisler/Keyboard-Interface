@@ -84,6 +84,7 @@ always @* begin
         tx_idle = 1;
         if(w_enable) begin
             state_next = REQUEST;
+            data_next = {~^data_in, data_in};
             rc_next = 0;
         end
     end
@@ -103,7 +104,6 @@ always @* begin
         if(falling_edge) begin
             state_next = SEND_DATA;
             n_next = 8;
-            data_next = {~^data_in, data_in};
         end
     end
 

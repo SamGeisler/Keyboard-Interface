@@ -1,13 +1,22 @@
-module top (input i_clk, input i_TXD, inout io_PS2_clk, inout io_PS2_data,
-output o_RXD, output [3:0] o_db_led1, output [3:0] o_db_led2, output [3:0] o_db_led3, output [3:0] o_db_led4);
+module top 
+(
+    inout ps2d, ps2c,
+    input clk, reset,
+    input UART_txd,
+    output UART_rxd
+);
 
-wire [7:0] w_keycode;
-wire [2:0] w_led_status;
-wire w_ready;
+wire [2:0] led_status;
+wire [7:0] UART_tx_data;
+wire UART_tx_tick;
 
-kb_interface KB_inst(.i_clk(i_clk), .io_PS2_clk(io_PS2_clk), .io_PS2_data(io_PS2_data), .o_keycode(w_keycode), .o_ready(w_ready), .i_led_status(w_led_status), .o_db_led1(o_db_led1), .o_db_led2(o_db_led2), .o_db_led3(o_db_led3), .o_db_led4(o_db_led4));
+kb_interface kb_interface_unit
+    (.clk(clk), .reset(reset), .ps2d(ps2d), .ps2c(ps2c), .led_status(led_status),
+     .UART_tx_data(UART_tx_data), .UART_tx_tick(UART_tx_tick));
 
-UART_transmit UART_inst(.i_clk(i_clk), .i_TXD(i_TXD), .i_send(w_ready), .i_to_send(w_keycode), .o_RXD(o_RXD), .o_led_status(w_led_status));
+UART_transmit UART_transmit_unit
+    (.i_clk(clk), .i_TXD(UART_txd), .o_RXD(UART_rxd), .o_led_status(led_status),
+     .i_send(UART_tx_tick), .i_to_send(UART_tx_data));
 
 
 endmodule

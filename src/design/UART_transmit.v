@@ -28,14 +28,14 @@ reg [1:0] r_state = IDLE;
 always @(posedge i_clk) begin
     if(i_send) begin
 
-        if(r_released) begin
+        if(r_released) begin//This key was just released, don't transmit
             r_transmitting <= 0;
             r_released <= 0;
             if(i_to_send == 8'h12) r_shift[0] <= 0;
             else if(i_to_send == 8'h59) r_shift[1] <= 0;
-        end else if(i_to_send == 8'he0) begin
+        end else if(i_to_send == 8'he0) begin//Extended key code
             r_transmitting <= 0;
-        end else if(i_to_send == 8'hf0 ) begin
+        end else if(i_to_send == 8'hf0 ) begin//Key released (ignore next)
             r_released <= 1;
             r_transmitting <= 0;
         end else begin

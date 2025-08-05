@@ -1,227 +1,77 @@
-module kb_interface(
-input i_clk,
-inout io_PS2_clk,
-inout io_PS2_data,
-input [2:0] i_led_status,
-output reg [7:0] o_keycode = 0,
-output reg o_ready = 0,
-output reg [3:0] o_db_led1 = 0,//Current FSM state
-output reg [3:0] o_db_led2 = 0,//r_current_bit
-output reg [3:0] o_db_led3 = 0,//PS2 clock falling edge count: IDLE state
-output reg [3:0] o_db_led4 = 0//PS2 clock falling edge count: READING state
+module kb_interface (
+    inout ps2d, ps2c,
+    input clk, reset,
+    input [2:0] led_status,
+
+    output [7:0] UART_tx_data,
+    output reg UART_tx_tick
 );
 
-//Divide system clock to PS/2 interface speed. This clock is assigned to r_TX_clk when writing to the device.
-localparam NUM_CYCLES_IN_SLOW_CYCLE = 80000;
-reg [15:0] r_slow_clock_counter = 0;
-reg r_slow_clock = 0;
-reg r_match_clock_flag = 0;
+reg [7:0] ps2_tx_data;
+reg ps2_tx_tick;
+wire [7:0] rx_data;
 
-//Bi-Directional buffer controls
-reg r_write_enable = 0;
+wire rx_done_tick, tx_done_tick;
 
-reg r_TX_clk = 1;
-wire w_RX_clk = io_PS2_clk;
-assign io_PS2_clk = r_write_enable ? (r_match_clock_flag ? r_slow_clock : r_TX_clk) : 1'bZ;
 
-reg r_TX_data = 1;
-wire w_RX_data = io_PS2_data;
-assign io_PS2_data = r_write_enable ? r_TX_data : 1'bZ;
+assign UART_tx_data = rx_data;
 
-//For pulsing o_ready
-reg r_pulse_ready1 = 0;
-reg r_pulse_ready2 = 0;
+ps2_transceiver ps2_transceiver_unit
+    ( .clk(clk), .reset(reset), .ps2d(ps2d), .ps2c(ps2c), .data_in(ps2_tx_data), .write(write_tick),
+      .data_out(rx_data), .rx_done_tick(rx_done_tick), .tx_done_tick(tx_done_tick) );
 
-//For detecting falling edge of PS/2 closk
-reg [2:0] r_PS2_clk_sync = 3'b111;
-wire w_PS2_clk_falling_edge = r_PS2_clk_sync[2] && !r_PS2_clk_sync[1];
-wire w_PS2_clk_rising_edge = !r_PS2_clk_sync[2] && r_PS2_clk_sync[1];
 
-//FSM 
 localparam IDLE = 0;
-localparam READING = 1;
-localparam SEND_LED_COMMAND = 2;
-localparam DELAY1 = 3;//Between reading lock key and sending command
-localparam DELAY2 = 4;//Between receiving okay and sending flags
-localparam RECEIVE_OK = 5;
-localparam SEND_LED_FLAGS = 6;
-localparam WAIT_HIGH1 = 7;
-localparam WAIT_HIGH2 = 8;
+localparam SEND_LED_COMMAND = 1;
+localparam RECEIVE_OK = 2;
+localparam SEND_LED_FLAGS = 3;
 
-reg [3:0] r_state = IDLE;
+reg [1:0] state_reg, state_next;
 
-//FSM counters:
-reg [3:0] r_current_bit = 0; //Used for all reading and writing operations
-reg [13:0] r_delay_counter = 0; //For DELAY1 and DELAY2 states
 
-localparam LED_COMMAND = 8'hed;
-localparam DELAY_CYCLES = 12000;//120us
+always @(posedge clk, posedge reset) 
+    if(reset) begin
+        state_reg <= IDLE;
+    end else begin
+        state_reg <= state_next;
+    end
 
-always @(posedge i_clk) begin
+always @* begin
+    state_next = state_reg;
+    UART_tx_tick = 0;
+    ps2_tx_tick = 0;
 
-    //Divide into slow clock for PS/2 transmission (clock is reset before sending packet)
-    if(r_slow_clock_counter == NUM_CYCLES_IN_SLOW_CYCLE/2 - 1) begin
-        r_slow_clock <= ~r_slow_clock;
-        r_slow_clock_counter <= 0;
-    end else
-        r_slow_clock_counter <= r_slow_clock_counter + 1;
 
-    //Record PS/2 clock for edge detection
-    r_PS2_clk_sync[0] <= w_RX_clk;
-    r_PS2_clk_sync[1] <= r_PS2_clk_sync[0];
-    r_PS2_clk_sync[2] <= r_PS2_clk_sync[1];
-
-    //Debugging
-    o_db_led1 <= r_state;
-    o_db_led2 <= r_current_bit;
-
-    //FSM
-    case (r_state) 
+    case(state_reg)
     IDLE: begin
-        r_write_enable <= 0;
-        r_pulse_ready1 <= 0;
-        if(w_PS2_clk_falling_edge) begin
-            o_db_led3 <= o_db_led3 + 1;
-            r_state <= READING;
-            r_current_bit <= 1;
+        if(rx_done_tick) begin
+            UART_tx_tick = 1;
+            if(rx_data == 8'h58 || rx_data == 8'h77 || rx_data == 8'h7e) 
+                state_next = SEND_LED_COMMAND;
         end
-    end
-
-    READING: begin
-        r_write_enable <= 0;
-        if(w_PS2_clk_falling_edge) begin
-            o_db_led4 <= o_db_led4 + 1;
-            r_current_bit <= r_current_bit + 1;
-            case (r_current_bit)                 
-                1,2,3,4,5,6,7,8: o_keycode[r_current_bit-1] <= w_RX_data;
-                9: ;
-                10: begin
-                    r_pulse_ready1 <= 1;
-                    if(o_keycode == 8'h58 || o_keycode == 8'h77 || o_keycode == 8'h7e) begin
-                        r_state <= WAIT_HIGH1;
-                        r_current_bit <= 0;
-                    end else r_state <= IDLE;
-                end
-            endcase
-        end
-    end
-
-    WAIT_HIGH1: begin
-        r_write_enable <= 0;
-        if(w_RX_clk && w_RX_data) begin
-            r_state <= DELAY1;
-            r_delay_counter <= 0;
-        end
-    end
-
-    DELAY1: begin
-        r_write_enable <= 1;
-        r_match_clock_flag <= 0;
-        r_TX_clk <= 0;
-        r_TX_data <= 0;
-        if(r_delay_counter == DELAY_CYCLES) begin
-            r_state <= SEND_LED_COMMAND;
-            r_current_bit <= 0;
-            r_delay_counter <= 0;
-        end else r_delay_counter <= r_delay_counter + 1;
     end
 
     SEND_LED_COMMAND: begin
-        r_write_enable <= 1;
-        
-        //Set up divided clock for output (start with rising edge)
-        if(!r_match_clock_flag)begin
-            r_match_clock_flag <= 1;
-            r_slow_clock <= 1;
-            r_slow_clock_counter <= 0;
-        end
-
-        //Change data on rising edges for reading on falling edges
-        if(w_PS2_clk_rising_edge) begin
-            r_current_bit <= r_current_bit + 1;
-            case(r_current_bit)
-                0: r_TX_data <= 0;
-                1,2,3,4,5,6,7,8: r_TX_data <= LED_COMMAND[r_current_bit-1];
-                9: r_TX_data <= ^LED_COMMAND; //Odd parity
-                10: r_TX_data <= 1;
-                11: begin
-                    r_state <= RECEIVE_OK;
-                    r_current_bit <= 0;
-                    r_delay_counter <= 0;
-                    r_write_enable <= 0;
-                end
-            endcase
-        end
+        ps2_tx_data = 8'hed;
+        ps2_tx_tick = 1;
+        state_next = RECEIVE_OK;
     end
 
     RECEIVE_OK: begin
-        r_write_enable <= 0;
-        if(w_PS2_clk_falling_edge) begin
-            if(r_current_bit == 10)
-                r_state <= WAIT_HIGH2;
-            else r_current_bit <= r_current_bit + 1;
-        end
-    end
-
-    WAIT_HIGH2: begin
-        r_write_enable <= 0;
-        if(w_RX_clk && w_RX_data) begin
-            r_state <= DELAY2;
-            r_delay_counter <= 0;
-        end
-    end
-
-    DELAY2: begin
-        r_write_enable <= 1;
-        r_match_clock_flag <= 0;
-        r_TX_clk <= 0;
-        r_TX_data <= 0;
-        if(r_delay_counter == DELAY_CYCLES) begin
-            r_state <= SEND_LED_FLAGS;
-            r_current_bit <= 0;
-            r_delay_counter <= 0;
-        end else r_delay_counter <= r_delay_counter + 1;
+        if(rx_done_tick)
+            state_next = SEND_LED_FLAGS;
+    
     end
 
     SEND_LED_FLAGS: begin
-        r_write_enable <= 1;
-        
-        //Set up divided clock for output (start with rising edge)
-        if(!r_match_clock_flag)begin
-            r_match_clock_flag <= 1;
-            r_slow_clock <= 1;
-            r_slow_clock_counter <= 0;
-        end
-
-        //Change data on rising edges for reading on falling edges
-        if(w_PS2_clk_rising_edge) begin
-            r_current_bit <= r_current_bit + 1;
-            case(r_current_bit)
-                0: r_TX_data <= 0;
-                1: r_TX_data <= i_led_status[0];
-                2: r_TX_data <= i_led_status[1];
-                3: r_TX_data <= i_led_status[2];
-                4,5,6,7,8: r_TX_data <= 0;
-                9: r_TX_data <= ^i_led_status; //Odd parity
-                10: r_TX_data <= 1;
-                11: begin
-                    r_write_enable <= 0;
-                    r_state <= IDLE;
-                    r_match_clock_flag <= 0;
-                end
-            endcase
-        end
+        ps2_tx_data = led_status;
+        ps2_tx_tick = 1;
+        state_next = IDLE;
+    
     end
     endcase
 end
 
-//Pulse o_ready
-always @(posedge i_clk) begin
-    r_pulse_ready2 <= r_pulse_ready1;
-    if(r_pulse_ready1 && !r_pulse_ready2)
-        o_ready <= 1;
-    else if (o_ready)
-        o_ready <= 0;
-end
+
 
 endmodule
