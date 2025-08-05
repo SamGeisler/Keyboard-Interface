@@ -81,7 +81,7 @@ always @* begin
 
     case(state_reg)
     IDLE: begin
-        tx_idle = 0;
+        tx_idle = 1;
         if(w_enable) begin
             state_next = REQUEST;
             rc_next = 0;

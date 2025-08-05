@@ -1,10 +1,9 @@
-`timescale 1 ns/ 10 ps
+`timescale 1 ns/ 100 ps
 module vector_gen #(
     parameter T = 10,//Number of time units in system clock cycle
     parameter B = 80000//Number of time units in PS2 clock cycle
 )
 (
-    input tx_finished,
     input ps2c, ps2d,
     output reg rx_clk, rx_data,
     output reg driving_c, driving_d,
@@ -24,11 +23,14 @@ end
 
 initial begin
     initialize();
-    send_packet(8'h48);
-    send_packet(8'h45);
-    send_packet(8'h4C);
-    send_packet(8'h4C);
-    send_packet(8'h4F);
+    send_string_rx("Test reception 1.");
+    
+    send_string_tx("Test transmission 1.");
+    
+    send_string_rx("Test reception 2.");
+    
+    send_string_tx("Test transmission 2.");
+    
     $stop();
 end
 
@@ -44,6 +46,7 @@ end
 endtask
 
 task async_reset(); begin
+    reset = 0;
     @(negedge clk);
     reset = 1;
     #(T/4);
@@ -51,7 +54,16 @@ task async_reset(); begin
 end
 endtask
 
-task send_packet(input [7:0] dword); begin
+task send_string_tx(input [159:0] string); 
+integer i;
+begin
+    for(i = 152; i>=0 ; i = i - 8) begin
+        send_packet_tx(string >> i);
+    end
+end
+endtask
+
+task send_packet_tx(input [7:0] dword); begin
     //Release lines
     driving_d = 0;
     driving_c = 0;
@@ -93,5 +105,57 @@ task send_packet(input [7:0] dword); begin
 end
 endtask
 
+task send_string_rx(input [135:0] string); 
+integer i;
+reg [7:0] current_byte;
+begin
+    for(i = 128; i>=0 ; i = i - 8) begin
+        send_packet_rx(string >> i);
+    end
+end
+endtask
+
+task send_packet_rx(input [7:0] dword); 
+integer i;
+begin
+    driving_c = 1;
+    driving_d = 1;
+
+    rx_clk = 1;
+    rx_data = 1;
+    #B;
+
+    rx_data = 0;
+    #(B/2);
+    rx_clk = 0;
+    #(B/2);
+
+    //Send data bits
+    for(i = 0; i<8; i = i + 1) begin
+        rx_clk = 1;
+        rx_data = dword[i];
+        #(B/2);
+        rx_clk = 0;
+        #(B/2);
+    end
+
+    //Send parity bits\
+    rx_clk = 1;
+    rx_data = ~^dword;
+    #(B/2);
+    rx_clk = 0;
+    #(B/2);
+
+    //Send stop bit
+    rx_clk = 1;
+    rx_data = 1;
+    #(B/2);
+    rx_clk = 0;
+    #(B/2);
+
+    driving_c = 0;
+    driving_d = 1;
+end
+endtask
 
 endmodule
