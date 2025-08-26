@@ -56,9 +56,11 @@ always @* begin
     IDLE: begin
         if(rx_done_tick) begin
             UART_tx_tick = 1;
+            /*Transmission of lock codes. Currently not working on hardware.
             if(rx_data == 8'h58 || rx_data == 8'h77 || rx_data == 8'h7e) 
                 state_next = DELAY_SEND;
                 delay_counter_next = -1;
+            */
         end
     end
 
