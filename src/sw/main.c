@@ -20,7 +20,7 @@ int main(){
 
     BOOL fSuccess = GetCommState(hCom, &dcb);
     if(!fSuccess){
-        printf("Failed to read COM4 port state. Error %d\n",GetLastError());
+        printf("Failed to read COM2 port state. Error %d\n",GetLastError());
         return 2;
     }
 
@@ -32,7 +32,7 @@ int main(){
 
     fSuccess = SetCommState(hCom, &dcb);
     if(!fSuccess){
-        printf("Failed to set COM4 port state. Error %d\n",GetLastError());
+        printf("Failed to set COM2 port state. Error %d\n",GetLastError());
         return 3;
     }
 

@@ -12,9 +12,10 @@ localparam
     IDLE = 0,
     START = 1,
     READ_DATA = 2,
-    STOP = 3;
+    STOP = 3,
+    WAIT_RELEASE = 4;
 
-reg [1:0] state_reg, state_next;
+reg [2:0] state_reg, state_next;
 reg [3:0] n_reg, n_next;
 reg [8:0] word_reg, word_next;
 
@@ -23,13 +24,14 @@ reg [7:0] clock_filter;
 wire [7:0] clock_filter_next;
 reg ps2c_f;
 wire ps2c_f_next;
-wire falling_edge;
+wire falling_edge, rising_edge;
 
 assign clock_filter_next = {ps2c, clock_filter[7:1]};
 assign ps2c_f_next = (clock_filter == 8'hff) ? 1 :
                      (clock_filter == 8'h00) ? 0 :
                      ps2c_f;
 assign falling_edge = ps2c_f & ~ps2c_f_next;
+assign rising_edge = ~ps2c_f & ps2c_f_next;
 
 always @(posedge clk, posedge reset) begin
     if(reset) begin
@@ -81,10 +83,15 @@ always @* begin
     
     STOP: begin
         if(falling_edge) begin
+            state_next = WAIT_RELEASE;
+        end
+    end
+
+    WAIT_RELEASE: 
+        if(rising_edge) begin
             done_tick = 1;
             state_next = IDLE;
         end
-    end
 
     endcase
 end

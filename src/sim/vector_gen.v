@@ -5,6 +5,7 @@ module vector_gen #(
 )
 (
     input ps2c, ps2d,
+    input tx_done_tick,
     output reg rx_clk, rx_data,
     output reg driving_c, driving_d,
     output reg w_enable,
@@ -24,12 +25,20 @@ end
 initial begin
     initialize();
     send_string_rx("Test reception 1.");
+
+    #100
     
     send_string_tx("Test transmission 1.");
+
+    #100
     
     send_string_rx("Test reception 2.");
+
+    #100
     
     send_string_tx("Test transmission 2.");
+
+    #100
     
     $stop();
 end
@@ -58,6 +67,7 @@ task send_string_tx(input [159:0] string);
 integer i;
 begin
     for(i = 152; i>=0 ; i = i - 8) begin
+      #100
         send_packet_tx(string >> i);
     end
 end
@@ -102,6 +112,9 @@ task send_packet_tx(input [7:0] dword); begin
 
     driving_d = 0;
     driving_c = 0;
+
+    @(tx_done_tick);
+    
 end
 endtask
 

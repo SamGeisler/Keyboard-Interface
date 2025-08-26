@@ -45,20 +45,20 @@ begin
     //Host (DUT) drives clock low
     @(negedge ps2c)
     cp0 = $time;
-    if(verbose) $display("Host send request dected");
+    if(verbose) $display("Host send request detected");
 
     //Host releases clock and drives data low
     @(negedge ps2d)
     if(verbose) $display("Start bit FE detected. Request time (us): %d", ($time - cp0)/1000);
 
-    //Device (stimulus) pulls clock high
-    @(posedge ps2c);
+    //Stimulus pulls clock high
+    wait(ps2c === 1);
 
     //Data bits
     for( i = 0; i<8; i = i + 1) begin
         @(posedge ps2c)
         tx_word[i] = ps2d;
-        if(verbose) $display("Read value %d into bit %d", ps2d, tx_word[i]);
+        if(verbose) $display("Read value %d into bit %d", ps2d, i);
     end
 
     @(posedge ps2c)

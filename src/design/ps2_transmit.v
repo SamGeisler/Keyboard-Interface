@@ -15,17 +15,19 @@ localparam
     REQUEST = 2,
     START = 3,
     SEND_DATA = 4,
-    STOP = 5;
+    STOP = 5,
+    WAIT_FOR_RELEASE = 6;
 
 localparam NUM_REQUEST_CYCLES = 12000;//120 us
 
 reg we_data, we_clock;
-reg tx_data, tx_clock;
+reg tx_data;
+reg tx_clock;
 reg [7:0] clock_filter;
 wire [7:0] clock_filter_next;
 reg ps2c_f;
 wire ps2c_f_next;
-wire falling_edge;
+wire falling_edge, rising_edge;
 
 reg [2:0] state_reg, state_next;
 reg [8:0] data_reg, data_next;
@@ -52,6 +54,7 @@ assign ps2c_f_next = (clock_filter == 8'hFF) ? 1 :
                      ps2c_f;
 assign clock_filter_next = {ps2c, clock_filter[7:1]};
 assign falling_edge = ~ps2c_f_next & ps2c_f;
+assign rising_edge = ~ps2c_f & ps2c_f_next;
 
 //Update state and data registers
 always @(posedge clk, posedge reset)
@@ -72,12 +75,16 @@ always @* begin
     state_next = state_reg;
     n_next = n_reg;
     data_next = data_reg;
+    rc_next = request_counter;
 
     we_data = 0;
     we_clock = 0;
 
     tx_finished = 0;
     tx_idle = 0;
+
+    tx_data = 1;
+    tx_clock = 1;
 
     case(state_reg)
     IDLE: begin
@@ -121,7 +128,13 @@ always @* begin
 
     STOP: begin
         we_data = 0;
-        if(falling_edge) begin
+        if(falling_edge)
+            state_next = WAIT_FOR_RELEASE;
+    end
+
+    WAIT_FOR_RELEASE: begin
+        we_data = 0;
+        if(rising_edge) begin
             state_next = IDLE;
             tx_finished = 1;
         end
