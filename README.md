@@ -5,4 +5,4 @@ The Basys-3 includes both a USB-UART bridge for programming and general communic
 
 The board will transmit codes to the keyboard over PS/2 to illuminate status LEDs (caps lock, scroll lock, and num lock). Included is a test bench to verify the functionality of the PS/2 transmission routine.
 
-PS/2 Transceiver design is based on implementation found in. All other code is compeletely original.
+PS/2 Transceiver design is based on the implementation found in *FPGA Prototypign by Verilog Examples*, Pong P. Chu, 2008.
